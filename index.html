@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>职场风险管理系统 (Advanced Analytics)</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: -apple-system, sans-serif; background: #0f111a; color: #fff; display: flex; justify-content: center; gap: 20px; padding: 20px; margin: 0; min-height: 100vh; }
+        .sidebar { display: flex; flex-direction: column; gap: 15px; width: 320px; }
+        .main-panel { background: #1a1c2c; padding: 20px; border-radius: 16px; flex: 1; max-width: 650px; box-shadow: 0 10px 40px rgba(0,0,0,0.6); }
+        .card { background: #24273a; padding: 15px; border-radius: 12px; border: 1px solid #2f334d; }
+        h3 { margin: 0 0 12px 0; font-size: 14px; color: #82aaff; text-transform: uppercase; letter-spacing: 1px; }
+        
+        /* 行业按钮 */
+        .btn-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; }
+        button { background: #2f334d; border: 1px solid #444a73; color: #929ac9; padding: 8px; border-radius: 6px; cursor: pointer; font-size: 12px; transition: 0.2s; }
+        button:hover { background: #3d446e; color: #fff; }
+        button.active { background: #82aaff; color: #1a1c2c; border-color: #82aaff; }
+
+        /* 滑块 */
+        .slider-group { margin-bottom: 12px; }
+        label { display: block; font-size: 12px; margin-bottom: 4px; color: #929ac9; }
+        input[type="range"] { width: 100%; cursor: pointer; accent-color: #82aaff; }
+        .val { float: right; color: #82aaff; font-weight: bold; }
+
+        /* 矩阵 */
+        .matrix-container { position: relative; padding: 30px 10px 10px 40px; }
+        .grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; }
+        .cell { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: 14px; border-radius: 3px; }
+        
+        /* 坐标 */
+        .axis-y { position: absolute; left: 5px; top: 30px; bottom: 10px; width: 30px; display: flex; flex-direction: column; justify-content: space-between; align-items: center; font-size: 10px; color: #444a73; }
+        .axis-x { display: flex; justify-content: space-between; padding: 5px 0 0 0; font-size: 10px; color: #444a73; }
+
+        .safe { background: rgba(195, 232, 141, 0.15); color: #c3e88d; border: 1px solid rgba(195, 232, 141, 0.3); }
+        .warn { background: rgba(255, 203, 107, 0.15); color: #ffcb6b; border: 1px solid rgba(255, 203, 107, 0.3); }
+        .danger { background: rgba(240, 113, 120, 0.15); color: #f07178; border: 1px solid rgba(240, 113, 120, 0.3); }
+
+        /* 诊断与随机 */
+        #diagnosis { font-size: 12px; line-height: 1.6; color: #c3e88d; background: rgba(195, 232, 141, 0.05); padding: 10px; border-radius: 6px; margin-top: 10px; border-left: 3px solid #c3e88d; }
+        .black-swan-btn { background: #f07178; color: #fff; width: 100%; border: none; padding: 10px; font-weight: bold; margin-top: 10px; border-radius: 6px; cursor: pointer; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+    </style>
+</head>
+<body>
+
+<div class="sidebar">
+    <div class="card">
+        <h3>🏢 行业预设模式</h3>
+        <div class="btn-group">
+            <button class="active" onclick="setMode('tech', this)">互联网大厂</button>
+            <button onclick="setMode('audit', this)">金融/审计</button>
+            <button onclick="setMode('creative', this)">创意设计</button>
+            <button onclick="setMode('gov', this)">体制内/编制</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>🎮 动态控制</h3>
+        <div class="slider-group">
+            <label>参会人数 (N) <span class="val" id="val-n">20</span></label>
+            <input type="range" id="n" min="2" max="100" value="20" oninput="update()">
+        </div>
+        <div class="slider-group">
+            <label>老板兴奋度 <span class="val" id="val-boss">1.0</span></label>
+            <input type="range" id="boss" min="0.5" max="5" step="0.5" value="1" oninput="update()">
+        </div>
+        <div class="slider-group">
+            <label>硬核/卷度 <span class="val" id="val-hard">5</span></label>
+            <input type="range" id="hard" min="1" max="10" value="5" oninput="update()">
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>🔍 智能诊断报告</h3>
+        <div id="diagnosis">正在分析当前风险敞口...</div>
+    </div>
+
+    <button class="black-swan-btn" onclick="triggerBlackSwan()">🎲 触发“黑天鹅”事件</button>
+</div>
+
+<div class="main-panel">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <h2 id="big-score" style="margin:0; font-size:42px;">SAFE ☕</h2>
+        <div style="text-align:right">
+            <div id="mode-tag" style="font-size:12px; color:#82aaff; font-weight:bold;">MODE: TECH</div>
+            <div style="font-size:11px; color:#637777;">Risk Level: Low</div>
+        </div>
+    </div>
+
+    <div class="card" style="height:150px; margin-bottom:20px;">
+        <h3>📈 敏感性分析 (Sensitivity)</h3>
+        <canvas id="s-chart"></canvas>
+    </div>
+
+    <div class="card">
+        <h3>🔥 生存矩阵 (Heatmap)</h3>
+        <div class="matrix-container">
+            <div class="axis-y"><span>10</span><span>8</span><span>6</span><span>4</span><span>2</span><span>1</span></div>
+            <div class="grid" id="grid"></div>
+            <div class="axis-x"><span>2</span><span>20</span><span>40</span><span>60</span><span>80</span><span>100</span></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let sChart;
+    const grid = document.getElementById('grid');
+    const cells = [];
+    let currentBullshitMultiplier = 1.0;
+
+    // 初始化矩阵
+    for (let i = 0; i < 100; i++) {
+        const div = document.createElement('div');
+        div.className = 'cell';
+        grid.appendChild(div);
+        cells.push(div);
+    }
+
+    function getS(n, b, h) {
+        let p = (1 / n) * b;
+        let pow = 1 / (h * 0.15 + 0.5);
+        return Math.min(100, (1 - p) * pow * 100 * currentBullshitMultiplier);
+    }
+
+    function setMode(mode, btn) {
+        document.querySelectorAll('.btn-group button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('mode-tag').innerText = "MODE: " + mode.toUpperCase();
+        
+        if(mode === 'tech') { n.value = 20; boss.value = 2; hard.value = 7; currentBullshitMultiplier = 1.0; }
+        if(mode === 'audit') { n.value = 5; boss.value = 1; hard.value = 9; currentBullshitMultiplier = 0.5; }
+        if(mode === 'creative') { n.value = 15; boss.value = 1; hard.value = 3; currentBullshitMultiplier = 1.8; }
+        if(mode === 'gov') { n.value = 50; boss.value = 0.5; hard.value = 2; currentBullshitMultiplier = 2.0; }
+        update();
+    }
+
+    function triggerBlackSwan() {
+        const events = [
+            { name: "老板突然点名！", effect: 0.1, msg: "危险！立刻停止所有划水！" },
+            { name: "信号极差...", effect: 1.5, msg: "绝佳机会，你可以假装掉线 10 分钟。" },
+            { name: "话题转到你的项目", effect: 0.3, msg: "风险激增，迅速准备汇报废话。" },
+            { name: "老板去接电话了", effect: 2.0, msg: "全面安全！这 5 分钟属于你。" }
+        ];
+        const e = events[Math.floor(Math.random()*events.length)];
+        currentBullshitMultiplier = e.effect;
+        alert(e.name + "\n" + e.msg);
+        update();
+        setTimeout(() => { currentBullshitMultiplier = 1.0; update(); }, 10000); // 10秒后恢复
+    }
+
+    function updateDiagnosis(n, b, h, score) {
+        let msg = "";
+        if (b > 3) msg = "⚠️ 老板当前极度兴奋，被点名概率是平时的 3 倍。";
+        else if (h > 8) msg = "🧠 会议过于硬核，废话防御力接近无效，建议保持专注。";
+        else if (n < 5) msg = "👥 参会人数过少，你已处于暴露状态，无法划水。";
+        else msg = "✅ 当前环境对划水行为极其宽容，风险敞口已关闭。";
+        document.getElementById('diagnosis').innerText = msg;
+    }
+
+    function initChart() {
+        const ctx = document.getElementById('s-chart').getContext('2d');
+        sChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: Array.from({length: 20}, (_, i) => (i * 5) + 2),
+                datasets: [{ data: [], borderColor: '#82aaff', borderWidth: 2, pointRadius: 0, fill: true, backgroundColor: 'rgba(130, 170, 255, 0.05)' }]
+            },
+            options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { min: 0, max: 100, display: false } } }
+        });
+    }
+
+    function update() {
+        const nv = parseInt(document.getElementById('n').value);
+        const bv = parseFloat(document.getElementById('boss').value);
+        const hv = parseInt(document.getElementById('hard').value);
+
+        document.getElementById('val-n').innerText = nv;
+        document.getElementById('val-boss').innerText = bv.toFixed(1);
+        document.getElementById('val-hard').innerText = hv;
+
+        const cur = getS(nv, bv, hv);
+        const scoreDiv = document.getElementById('big-score');
+        scoreDiv.innerText = cur > 70 ? "SAFE ☕" : (cur > 40 ? "WARN ⚠️" : "DANGER 🔥");
+        scoreDiv.style.color = cur > 70 ? "#c3e88d" : (cur > 40 ? "#ffcb6b" : "#f07178");
+
+        sChart.data.datasets[0].data = Array.from({length: 20}, (_, i) => getS((i * 5) + 2, bv, hv));
+        sChart.update('none');
+
+        for (let row = 0; row < 10; row++) {
+            for (let col = 0; col < 10; col++) {
+                let s = getS(col * 10 + 2, bv, 10 - row);
+                cells[row * 10 + col].className = 'cell ' + (s > 70 ? 'safe' : (s > 40 ? 'warn' : 'danger'));
+                cells[row * 10 + col].innerText = s > 70 ? '☕' : (s > 40 ? '⚠️' : '🔥');
+            }
+        }
+        updateDiagnosis(nv, bv, hv, cur);
+    }
+
+    initChart();
+    update();
+</script>
+
+</body>
+</html>
